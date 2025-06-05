@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Location Distance Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .container:hover {
+            transform: translateY(-5px);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .title {
+            color: white;
+            font-size: 2.2rem;
+            font-weight: 300;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1rem;
+            font-weight: 300;
+        }
+
+        .location-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            border: none;
+            border-radius: 50px;
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(255, 107, 107, 0.3);
+        }
+
+        .location-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px rgba(255, 107, 107, 0.4);
+        }
+
+        .location-btn:active {
+            transform: translateY(0);
+        }
+
+        .location-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .my-location {
+            display: none;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 25px;
+        }
+
+        .location-title {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .coordinate-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            transition: background 0.3s ease;
+            cursor: pointer;
+        }
+
+        .coordinate-item:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .coordinate-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .coord-label {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .coord-value {
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        .distance-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-label {
+            display: block;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .coordinate-input {
+            width: 100%;
+            padding: 12px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: white;
+            font-size: 1rem;
+            font-family: 'Courier New', monospace;
+            transition: all 0.3s ease;
+        }
+
+        .coordinate-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .coordinate-input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+        }
+
+        .calculate-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            border: none;
+            border-radius: 50px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 15px;
+            box-shadow: 0 8px 25px rgba(78, 205, 196, 0.3);
+        }
+
+        .calculate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(78, 205, 196, 0.4);
+        }
+
+        .calculate-btn:active {
+            transform: translateY(0);
+        }
+
+        .distance-result {
+            display: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .distance-value {
+            color: white;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .distance-unit {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1rem;
+        }
+
+        .error {
+            display: none;
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid rgba(255, 107, 107, 0.5);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .error-text {
+            color: #ff6b6b;
+            font-weight: 500;
+            line-height: 1.5;
+        }
+
+        .timestamp {
+            text-align: center;
+            margin-top: 15px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 30px 20px;
+            }
+            
+            .title {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">📍 Distance Calculator</h1>
+            <p class="subtitle">Find distance between coordinates</p>
+        </div>
+
+        <button class="location-btn" onclick="getLocation()">
+            Get My Location
+        </button>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p class="loading-text">Getting your location...</p>
+        </div>
+
+        <div class="my-location" id="myLocation">
+            <div class="location-title">📍 My Location</div>
+            <div class="coordinate-item" onclick="copyToClipboard('myLat')">
+                <span class="coord-label">Latitude</span>
+                <span class="coord-value" id="myLat">--</span>
+            </div>
+            <div class="coordinate-item" onclick="copyToClipboard('myLng')">
+                <span class="coord-label">Longitude</span>
+                <span class="coord-value" id="myLng">--</span>
+            </div>
+            <div class="timestamp" id="timestamp"></div>
+        </div>
+
+        <div class="distance-section">
+            <div class="section-title">🎯 Calculate Distance</div>
+            
+            <div class="input-group">
+                <label class="input-label" for="targetLat">Target Latitude</label>
+                <input type="number" id="targetLat" class="coordinate-input" 
+                       placeholder="e.g., 40.7128" step="any">
+            </div>
+            
+            <div class="input-group">
+                <label class="input-label" for="targetLng">Target Longitude</label>
+                <input type="number" id="targetLng" class="coordinate-input" 
+                       placeholder="e.g., -74.0060" step="any">
+            </div>
+            
+            <button class="calculate-btn" onclick="calculateDistance()">
+                Calculate Distance
+            </button>
+            
+            <div class="distance-result" id="distanceResult">
+                <div class="distance-value" id="distanceValue">--</div>
+                <div class="distance-unit">kilometers away</div>
+            </div>
+        </div>
+
+        <div class="error" id="error">
+            <p class="error-text" id="errorText"></p>
+        </div>
+    </div>
+
+    <script>
+        let myLatitude = null;
+        let myLongitude = null;
+
+        function getLocation() {
+            if (!navigator.geolocation) {
+                showError("Geolocation is not supported by this browser.");
+                return;
+            }
+
+            hideAll();
+            showLoading();
+            
+            const btn = document.querySelector('.location-btn');
+            btn.disabled = true;
+            btn.textContent = 'Getting Location...';
+
+            tryHighAccuracy();
+        }
+
+        function tryHighAccuracy() {
+            navigator.geolocation.getCurrentPosition(
+                showPosition,
+                function(error) {
+                    console.log('High accuracy failed, trying fallback...');
+                    tryFallback();
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 8000,
+                    maximumAge: 60000
+                }
+            );
+        }
+
+        function tryFallback() {
+            navigator.geolocation.getCurrentPosition(
+                showPosition,
+                function(error) {
+                    console.log('Fallback failed, trying cached...');
+                    tryCached();
+                },
+                {
+                    enableHighAccuracy: false,
+                    timeout: 5000,
+                    maximumAge: 300000
+                }
+            );
+        }
+
+        function tryCached() {
+            navigator.geolocation.getCurrentPosition(
+                showPosition,
+                showError,
+                {
+                    enableHighAccuracy: false,
+                    timeout: 3000,
+                    maximumAge: 600000
+                }
+            );
+        }
+
+        function showPosition(position) {
+            const coords = position.coords;
+            
+            myLatitude = coords.latitude;
+            myLongitude = coords.longitude;
+            
+            document.getElementById('myLat').textContent = coords.latitude.toFixed(8);
+            document.getElementById('myLng').textContent = coords.longitude.toFixed(8);
+            
+            const timestamp = new Date(position.timestamp);
+            document.getElementById('timestamp').textContent = `Updated: ${timestamp.toLocaleTimeString()}`;
+            
+            hideLoading();
+            showMyLocation();
+            resetButton();
+        }
+
+        function showError(error) {
+            let errorMessage = '';
+            let suggestions = '';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage = "Location access denied.";
+                    suggestions = "Please enable location permissions in your browser settings and try again.";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage = "Location information is unavailable.";
+                    suggestions = "Please check your GPS/network connection and try moving to an open area.";
+                    break;
+                case error.TIMEOUT:
+                    errorMessage = "Location request timed out.";
+                    suggestions = "This usually happens indoors or in areas with poor GPS signal. Try moving to an open area or check if location services are enabled.";
+                    break;
+                default:
+                    errorMessage = "An unknown error occurred.";
+                    suggestions = "Please try again or check your browser settings.";
+                    break;
+            }
+            
+            document.getElementById('errorText').innerHTML = `<strong>${errorMessage}</strong><br><br>${suggestions}`;
+            hideLoading();
+            showErrorDiv();
+            resetButton();
+        }
+
+        function calculateDistance() {
+            const targetLat = parseFloat(document.getElementById('targetLat').value);
+            const targetLng = parseFloat(document.getElementById('targetLng').value);
+            
+            if (!myLatitude || !myLongitude) {
+                showError({code: 'NO_LOCATION', message: 'Please get your location first before calculating distance.'});
+                return;
+            }
+            
+            if (isNaN(targetLat) || isNaN(targetLng)) {
+                showError({code: 'INVALID_INPUT', message: 'Please enter valid latitude and longitude values.'});
+                return;
+            }
+            
+            if (targetLat < -90 || targetLat > 90) {
+                showError({code: 'INVALID_LAT', message: 'Latitude must be between -90 and 90 degrees.'});
+                return;
+            }
+            
+            if (targetLng < -180 || targetLng > 180) {
+                showError({code: 'INVALID_LNG', message: 'Longitude must be between -180 and 180 degrees.'});
+                return;
+            }
+            
+            const distance = haversineDistance(myLatitude, myLongitude, targetLat, targetLng);
+            
+            document.getElementById('distanceValue').textContent = distance.toFixed(2);
+            showDistanceResult();
+            hideError();
+        }
+
+        function haversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's radius in kilometers
+            const dLat = toRadians(lat2 - lat1);
+            const dLon = toRadians(lon2 - lon1);
+            
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distance = R * c;
+            
+            return distance;
+        }
+
+        function toRadians(degrees) {
+            return degrees * (Math.PI/180);
+        }
+
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const element = document.getElementById(elementId);
+                const original = element.textContent;
+                element.textContent = 'Copied!';
+                setTimeout(() => {
+                    element.textContent = original;
+                }, 1000);
+            });
+        }
+
+        function hideAll() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('myLocation').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('distanceResult').style.display = 'none';
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function showMyLocation() {
+            document.getElementById('myLocation').style.display = 'block';
+        }
+
+        function showErrorDiv() {
+            document.getElementById('error').style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function showDistanceResult() {
+            document.getElementById('distanceResult').style.display = 'block';
+        }
+
+        function resetButton() {
+            const btn = document.querySelector('.location-btn');
+            btn.disabled = false;
+            btn.textContent = 'Get My Location';
+        }
+
+        // Allow Enter key to calculate distance
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && (e.target.id === 'targetLat' || e.target.id === 'targetLng')) {
+                calculateDistance();
+            }
+        });
+    </script>
+</body>
+</html>
