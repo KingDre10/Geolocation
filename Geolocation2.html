@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Distance Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        .device-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .distance-display {
+            font-size: 2.5em;
+            font-weight: bold;
+            text-align: center;
+            margin: 30px 0;
+            color: #ffeb3b;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        button {
+            background: linear-gradient(45deg, #ff6b6b, #ff8e53);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: transform 0.3s;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .status.success { background: rgba(76, 175, 80, 0.3); }
+        .status.error { background: rgba(244, 67, 54, 0.3); }
+        .status.warning { background: rgba(255, 193, 7, 0.3); }
+        .wifi-networks {
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .network-item {
+            padding: 8px 12px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .signal-strength {
+            font-weight: bold;
+            color: #4caf50;
+        }
+        .device-id {
+            font-family: monospace;
+            font-size: 14px;
+            color: #bbbbbb;
+        }
+        .connection-status {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 10px;
+        }
+        .connected { background: #4caf50; }
+        .disconnected { background: #f44336; }
+        .connecting { background: #ff9800; animation: pulse 1s infinite; }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📍 Device Distance Tracker</h1>
+        
+        <div class="device-info">
+            <h3>This Device</h3>
+            <div class="device-id">ID: <span id="deviceId">Generating...</span></div>
+            <div>Status: <span id="status">Initializing...</span><span id="connectionDot" class="connection-status disconnected"></span></div>
+            <div>GPS: <span id="gpsStatus">Waiting for permission...</span></div>
+            <div>Coordinates: <span id="coordinates">Not available</span></div>
+        </div>
+
+        <div class="distance-display" id="distanceDisplay">
+            📡 Scanning for devices...
+        </div>
+
+        <div class="controls">
+            <button id="startBtn" onclick="startTracking()">Start Tracking</button>
+            <button id="stopBtn" onclick="stopTracking()" disabled>Stop Tracking</button>
+            <button onclick="shareLocation()">Share My Location</button>
+            <button onclick="clearData()">Clear Data</button>
+        </div>
+
+        <div id="statusMessages"></div>
+
+        <div>
+            <h3>📶 Available WiFi Networks</h3>
+            <div class="wifi-networks" id="wifiNetworks">
+                <div class="status warning">WiFi scanning has limited browser support. Using GPS-based distance calculation.</div>
+            </div>
+        </div>
+
+        <div>
+            <h3>🔍 Nearby Devices</h3>
+            <div id="nearbyDevices">
+                <div class="status warning">No devices found. Make sure other devices are also running this page.</div>
+            </div>
+        </div>
+
+        <div>
+            <h3>🔗 Connection Info</h3>
+            <div class="device-info">
+                <div>Room Code: <span id="roomCode">Not connected</span></div>
+                <div>Connected Devices: <span id="connectedCount">0</span></div>
+                <div>Last Update: <span id="lastUpdate">Never</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let deviceId = '';
+        let currentPosition = null;
+        let isTracking = false;
+        let otherDevices = new Map();
+        let wsConnection = null;
+        let roomCode = '';
+
+        // Generate unique device ID
+        function generateDeviceId() {
+            return 'device_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36);
+        }
+
+        // Initialize device
+        function initDevice() {
+            deviceId = generateDeviceId();
+            document.getElementById('deviceId').textContent = deviceId;
+            roomCode = prompt("Enter room code (same for all devices):", "room123") || "room123";
+            document.getElementById('roomCode').textContent = roomCode;
+            
+            // Request location permission
+            requestLocation();
+            
+            // Simulate WebSocket connection (in real implementation, use actual WebSocket server)
+            simulateWebSocketConnection();
+        }
+
+        // Request GPS location
+        function requestLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        currentPosition = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude,
+                            accuracy: position.coords.accuracy,
+                            timestamp: Date.now()
+                        };
+                        
+                        document.getElementById('gpsStatus').textContent = 'GPS Active';
+                        document.getElementById('coordinates').textContent =` 
+                            ${currentPosition.lat.toFixed(6)}, ${currentPosition.lng.toFixed(6)} (±${currentPosition.accuracy}m)`;
+                        
+                        showStatus('GPS location acquired successfully', 'success');
+                    },
+                    error => {
+                        showStatus('GPS error: ' + error.message, 'error');
+                        document.getElementById('gpsStatus').textContent = 'GPS Error';
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 60000
+                    }
+                );
+            } else {
+                showStatus('Geolocation not supported by this browser', 'error');
+            }
+        }
+
+        // Simulate WebSocket connection (replace with real server)
+        function simulateWebSocketConnection() {
+            // This is a simulation - in real implementation, connect to your WebSocket server
+            document.getElementById('connectionDot').className = 'connection-status connecting';
+            
+            setTimeout(() => {
+                document.getElementById('connectionDot').className = 'connection-status connected';
+                document.getElementById('status').textContent = 'Connected to server';
+                showStatus('Connected to tracking server', 'success');
+                
+                // Simulate receiving data from other devices
+                simulateOtherDevices();
+            }, 2000);
+        }
+
+        // Simulate other devices (for demo purposes)
+        function simulateOtherDevices() {
+            // In real implementation, this data comes from WebSocket server
+            const simulatedDevices = [
+                {
+                    id: 'device_demo1',
+                    lat: currentPosition ? currentPosition.lat + 0.001 : 0,
+                    lng: currentPosition ? currentPosition.lng + 0.001 : 0,
+                    timestamp: Date.now()
+                },
+                {
+                    id: 'device_demo2',
+                    lat: currentPosition ? currentPosition.lat - 0.0005 : 0,
+                    lng: currentPosition ? currentPosition.lng + 0.0015 : 0,
+                    timestamp: Date.now()
+                }
+            ];
+
+            simulatedDevices.forEach(device => {
+                otherDevices.set(device.id, device);
+            });
+
+            updateDeviceList();
+            calculateDistances();
+        }
+
+        // Calculate distance between two GPS coordinates
+        function calculateDistance(lat1, lng1, lat2, lng2) {
+            const R = 6371000; // Earth's radius in meters
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // Calculate distances to all other devices
+        function calculateDistances() {
+            if (!currentPosition || otherDevices.size === 0) {
+                document.getElementById('distanceDisplay').textContent = '📡 No devices in range';
+                return;
+            }
+
+            let closestDistance = Infinity;
+            let closestDevice = null;
+
+            otherDevices.forEach((device, id) => {
+                const distance = calculateDistance(
+                    currentPosition.lat, currentPosition.lng,
+                    device.lat, device.lng
+                );
+                
+                device.distance = distance;
+                
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestDevice = device;
+                }
+            });
+
+            if (closestDevice) {
+                document.getElementById('distanceDisplay').textContent = `
+                    📍 ${closestDistance.toFixed(1)}m`;
+                
+                if (closestDistance <= 200) {
+                    document.getElementById('distanceDisplay').style.color = '#4caf50';
+                } else {
+                    document.getElementById('distanceDisplay').style.color = '#ff6b6b';
+                }
+            }
+
+            document.getElementById('connectedCount').textContent = otherDevices.size;
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+
+        // Update device list display
+        function updateDeviceList() {
+            const container = document.getElementById('nearbyDevices');
+            container.innerHTML = '';
+
+            if (otherDevices.size === 0) {
+                container.innerHTML = '<div class="status warning">No devices found. Make sure other devices are also running this page.</div>';
+                return;
+            }
+
+            otherDevices.forEach((device, id) => {
+                const deviceDiv = document.createElement('div');
+                deviceDiv.className = 'device-info';
+                deviceDiv.innerHTML = `
+                    <div class="device-id">ID: ${id}</div>
+                    <div>Distance: ${device.distance ? device.distance.toFixed(1) + 'm' : 'Calculating...'}</div>
+                    <div>Coordinates: ${device.lat.toFixed(6)}, ${device.lng.toFixed(6)}</div>
+                    <div>Last seen: ${new Date(device.timestamp).toLocaleTimeString()}</div>
+                `;
+                container.appendChild(deviceDiv);
+            });
+        }
+
+        // Start tracking
+        function startTracking() {
+            if (!currentPosition) {
+                showStatus('Please wait for GPS location first', 'error');
+                return;
+            }
+
+            isTracking = true;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            
+            showStatus('Tracking started', 'success');
+            
+            // Update location periodically
+            setInterval(() => {
+                if (isTracking) {
+                    requestLocation();
+                    calculateDistances();
+                }
+            }, 5000);
+        }
+
+        // Stop tracking
+        function stopTracking() {
+            isTracking = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            showStatus('Tracking stopped', 'warning');
+        }
+
+        // Share location (copy to clipboard)
+        function shareLocation() {
+            if (!currentPosition) {
+                showStatus('No location available to share', 'error');
+                return;
+            }
+
+            const shareData = {
+                deviceId: deviceId,
+                lat: currentPosition.lat,
+                lng: currentPosition.lng,
+                roomCode: roomCode,
+                timestamp: Date.now()
+            };
+
+            const shareText = `Join room: ${roomCode}\nDevice: ${deviceId}\nLocation: ${currentPosition.lat.toFixed(6)}, ${currentPosition.lng.toFixed(6)}`;
+            
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Device Location',
+                    text: shareText
+                });
+            } else {
+                navigator.clipboard.writeText(shareText).then(() => {
+                    showStatus('Location copied to clipboard', 'success');
+                });
+            }
+        }
+
+        // Clear all data
+        function clearData() {
+            otherDevices.clear();
+            updateDeviceList();
+            document.getElementById('distanceDisplay').textContent = '📡 Scanning for devices...';
+            showStatus('Data cleared', 'warning');
+        }
+
+        // Show status message
+        function showStatus(message, type = 'info') {
+            const container = document.getElementById('statusMessages');
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            
+            container.appendChild(statusDiv);
+            
+            // Remove after 5 seconds
+            setTimeout(() => {
+                statusDiv.remove();
+            }, 5000);
+        }
+
+        // Initialize when page loads
+        window.onload = initDevice;
+
+        // Simulate WiFi network scanning (limited browser support)
+        function simulateWiFiScan() {
+            const wifiContainer = document.getElementById('wifiNetworks');
+            const networks = [
+                { name: 'WiFi_Network_1', strength: -45, frequency: '2.4GHz' },
+                { name: 'WiFi_Network_2', strength: -67, frequency: '5GHz' },
+                { name: 'WiFi_Network_3', strength: -72, frequency: '2.4GHz' }
+            ];
+
+            wifiContainer.innerHTML = '';
+            networks.forEach(network => {
+                const networkDiv = document.createElement('div');
+                networkDiv.className = 'network-item';
+                networkDiv.innerHTML = `
+                    <span>${network.name} (${network.frequency})</span>
+                    <span class="signal-strength">${network.strength} dBm</span>
+                `;
+                wifiContainer.appendChild(networkDiv);
+            });
+        }
+
+        // Simulate WiFi scan on page load
+        setTimeout(simulateWiFiScan, 3000);
+    </script>
+</body>
+</html>
